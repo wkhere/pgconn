@@ -42,17 +42,31 @@ func checkAndSleep(dt time.Duration) error {
 	return row.Scan(&v)
 }
 
-func run(c config) error {
+func run(c config) (err error) {
 	db.SetMaxOpenConns(c.maxconn)
 
+	done := make(chan struct{})
 	g := new(errgroup.Group)
 	for i := 0; i < c.n; i++ {
 		g.Go(func() error { return checkAndSleep(c.sleep) })
 	}
+	go func() {
+		err = g.Wait()
+		close(done)
+	}()
 
-	fmt.Printf("db stats: %+v\n", db.Stats())
-
-	return g.Wait()
+	// wait a bit for connections and report the stats each 1s
+	ticker := time.NewTimer(100 * time.Millisecond)
+	for {
+		select {
+		case <-ticker.C:
+			ticker.Reset(1 * time.Second)
+			fmt.Printf("%+v\n", db.Stats())
+		case <-done:
+			ticker.Stop()
+			return
+		}
+	}
 }
 
 type config struct {
