@@ -1,0 +1,4 @@
+pgconn
+======
+
+A simple tool to test Postgres connection pool.
